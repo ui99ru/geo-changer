@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
@@ -20,23 +21,25 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.geochanger.model.GeoPoint
 import com.geochanger.viewmodel.MapUiState
@@ -68,6 +71,8 @@ fun MapScreen(viewModel: MapViewModel) {
         OsmMapView(
             modifier = Modifier.fillMaxSize(),
             selectedPoint = uiState.selectedPoint,
+            centerRequest = uiState.centerRequest,
+            onCenterHandled = { viewModel.consumeCenterRequest() },
             onMapTap = { geoPoint -> viewModel.onMapTap(geoPoint) }
         )
 
@@ -78,6 +83,17 @@ fun MapScreen(viewModel: MapViewModel) {
                     .fillMaxWidth()
                     .padding(16.dp)
             )
+        }
+
+        FloatingActionButton(
+            onClick = { viewModel.centerOnRealLocation() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = if (uiState.hasMockPermission) 16.dp else 80.dp, end = 16.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            Icon(Icons.Default.MyLocation, contentDescription = "Моя позиция")
         }
 
         BottomControlCard(
@@ -103,9 +119,21 @@ fun MapScreen(viewModel: MapViewModel) {
 private fun OsmMapView(
     modifier: Modifier,
     selectedPoint: GeoPoint?,
+    centerRequest: GeoPoint?,
+    onCenterHandled: () -> Unit,
     onMapTap: (GeoPoint) -> Unit
 ) {
     var markerRef by remember { mutableStateOf<Marker?>(null) }
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+
+    LaunchedEffect(centerRequest) {
+        centerRequest?.let { center ->
+            mapViewRef.value?.controller?.animateTo(
+                OsmGeoPoint(center.latitude, center.longitude)
+            )
+            onCenterHandled()
+        }
+    }
 
     AndroidView(
         modifier = modifier,
@@ -120,7 +148,7 @@ private fun OsmMapView(
                 setTileSource(TileSourceFactory.MAPNIK)
                 setMultiTouchControls(true)
                 controller.setZoom(14.0)
-                controller.setCenter(OsmGeoPoint(55.7558, 37.6173)) // Moscow default
+                controller.setCenter(OsmGeoPoint(55.7558, 37.6173))
 
                 val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
                     override fun singleTapConfirmedHelper(p: OsmGeoPoint): Boolean {
@@ -130,7 +158,7 @@ private fun OsmMapView(
                     override fun longPressHelper(p: OsmGeoPoint): Boolean = false
                 })
                 overlays.add(0, eventsOverlay)
-            }
+            }.also { mapViewRef.value = it }
         },
         update = { mapView ->
             selectedPoint?.let { target ->
