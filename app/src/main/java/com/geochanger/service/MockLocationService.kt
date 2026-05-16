@@ -59,9 +59,10 @@ class MockLocationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val lat = intent.getDoubleExtra(EXTRA_LATITUDE, 0.0)
-                val lon = intent.getDoubleExtra(EXTRA_LONGITUDE, 0.0)
-                val alt = intent.getDoubleExtra(EXTRA_ALTITUDE, 0.0)
+                val i = intent!!
+                val lat = i.getDoubleExtra(EXTRA_LATITUDE, 0.0)
+                val lon = i.getDoubleExtra(EXTRA_LONGITUDE, 0.0)
+                val alt = i.getDoubleExtra(EXTRA_ALTITUDE, 0.0)
                 currentTarget = GeoPoint(lat, lon, alt)
                 startForeground(NOTIFICATION_ID, buildNotification(lat, lon))
                 startMocking()
@@ -105,7 +106,9 @@ class MockLocationService : Service() {
         MOCK_PROVIDERS.forEach { provider ->
             try {
                 locationManager.removeTestProvider(provider)
-            } catch (_: IllegalArgumentException) { }
+            } catch (e: IllegalArgumentException) {
+                // Provider was never registered or already removed
+            }
         }
     }
 
@@ -132,7 +135,9 @@ class MockLocationService : Service() {
             locationManager.setTestProviderEnabled(provider, true)
         } catch (e: SecurityException) {
             stopSelf()
-        } catch (_: IllegalArgumentException) { }
+        } catch (e: IllegalArgumentException) {
+            // Provider already registered
+        }
     }
 
     private fun pushLocation(provider: String, target: GeoPoint) {
@@ -148,7 +153,9 @@ class MockLocationService : Service() {
         }
         try {
             locationManager.setTestProviderLocation(provider, location)
-        } catch (_: IllegalArgumentException) { }
+        } catch (e: IllegalArgumentException) {
+            // Provider removed between iterations
+        }
     }
 
     private fun createNotificationChannel() {
