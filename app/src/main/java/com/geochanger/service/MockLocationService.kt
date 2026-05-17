@@ -35,6 +35,11 @@ class MockLocationService : Service() {
         const val EXTRA_LONGITUDE = "extra_longitude"
         const val EXTRA_ALTITUDE  = "extra_altitude"
 
+        const val PREFS_NAME     = "geo_changer_prefs"
+        const val PREF_IS_MOCKING = "is_mocking"
+        const val PREF_LAT       = "selected_lat"
+        const val PREF_LON       = "selected_lon"
+
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "geo_changer_channel"
 
@@ -64,10 +69,12 @@ class MockLocationService : Service() {
                 val lon = i.getDoubleExtra(EXTRA_LONGITUDE, 0.0)
                 val alt = i.getDoubleExtra(EXTRA_ALTITUDE, 0.0)
                 currentTarget = GeoPoint(lat, lon, alt)
+                saveState(true, lat, lon)
                 startForeground(NOTIFICATION_ID, buildNotification(lat, lon))
                 startMocking()
             }
             ACTION_STOP -> {
+                saveState(false)
                 stopMocking()
                 stopSelf()
             }
@@ -78,8 +85,17 @@ class MockLocationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        saveState(false)
         stopMocking()
         super.onDestroy()
+    }
+
+    private fun saveState(running: Boolean, lat: Double = 0.0, lon: Double = 0.0) {
+        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+            .putBoolean(PREF_IS_MOCKING, running)
+            .putLong(PREF_LAT, lat.toBits())
+            .putLong(PREF_LON, lon.toBits())
+            .apply()
     }
 
     private fun startMocking() {

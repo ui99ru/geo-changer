@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+private fun Long.bitsToDouble() = Double.fromBits(this)
+
 data class MapUiState(
     val selectedPoint: GeoPoint? = null,
     val isMocking: Boolean = false,
@@ -28,6 +30,26 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+
+    init {
+        restoreState()
+    }
+
+    private fun restoreState() {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences(MockLocationService.PREFS_NAME, Context.MODE_PRIVATE)
+        val isMocking = prefs.getBoolean(MockLocationService.PREF_IS_MOCKING, false)
+        if (isMocking) {
+            val lat = prefs.getLong(MockLocationService.PREF_LAT, 0L).bitsToDouble()
+            val lon = prefs.getLong(MockLocationService.PREF_LON, 0L).bitsToDouble()
+            _uiState.update {
+                it.copy(
+                    isMocking = true,
+                    selectedPoint = GeoPoint(lat, lon)
+                )
+            }
+        }
+    }
 
     fun checkMockPermission() {
         val hasPerm = MockLocationPermissionHelper.isMockLocationEnabled(getApplication())
